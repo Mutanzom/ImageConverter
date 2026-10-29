@@ -59,6 +59,11 @@
                         <FontIcon Glyph="&#xE8AB;" />
                     </MenuFlyoutItem.Icon>
                 </MenuFlyoutItem>
+                <MenuFlyoutItem x:Name="CreateGifItem" Text="Create GIF from selected" Click="CreateGif_Click">
+                    <MenuFlyoutItem.Icon>
+                        <FontIcon Glyph="&#xE786;" />
+                    </MenuFlyoutItem.Icon>
+                </MenuFlyoutItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Open" Click="OpenFile_Click">
                     <MenuFlyoutItem.Icon>
@@ -126,9 +131,52 @@
             <AppBarButton Label="Remove" Icon="Remove" Click="RemoveSelected_Click" IsEnabled="{x:Bind ViewModel.CanRemove, Mode=OneWay}"
                           ToolTipService.ToolTip="Remove selected images from the list (Del)" />
             <AppBarButton Label="Clear list" Icon="Clear" Click="ClearList_Click" IsEnabled="{x:Bind ViewModel.CanClear, Mode=OneWay}" />
+            <AppBarSeparator />
+            <AppBarButton Label="Create GIF" Click="CreateGif_Click" IsEnabled="{x:Bind ViewModel.CanCreateGif, Mode=OneWay}"
+                          ToolTipService.ToolTip="Make an animated GIF from the selected images, in list order (select 2 or more)">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE786;" />
+                </AppBarButton.Icon>
+            </AppBarButton>
         </CommandBar>
 
         <InfoBar x:Name="Notice" Grid.Row="2" Margin="16,0,16,8" IsOpen="False" />
+
+        <ContentDialog x:Name="GifDialog" Title="Create GIF" PrimaryButtonText="Create GIF" CloseButtonText="Cancel"
+                       DefaultButton="Primary" PrimaryButtonClick="GifDialog_PrimaryButtonClick">
+            <StackPanel Spacing="12" Width="380">
+                <TextBlock x:Name="GifSummary" Style="{StaticResource Caption}" />
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <NumberBox Header="Frame delay (ms)" Minimum="20" Maximum="60000" SmallChange="50" SpinButtonPlacementMode="Compact"
+                               Value="{x:Bind ViewModel.Gif.FrameDelayMs, Mode=TwoWay}" />
+                    <NumberBox Grid.Column="1" Header="Loops (0 = forever)" Minimum="0" Maximum="1000" SpinButtonPlacementMode="Compact"
+                               Value="{x:Bind ViewModel.Gif.Loops, Mode=TwoWay}" />
+                </Grid>
+                <TextBlock Style="{StaticResource Caption}" Margin="0,-6,0,0" Text="{x:Bind local:Ui.Fps(ViewModel.Gif.FrameDelayMs), Mode=OneWay}" />
+                <CheckBox Content="Play forward, then backward" IsChecked="{x:Bind ViewModel.Gif.PingPong, Mode=TwoWay}" />
+                <NumberBox Header="Longest side (px, 0 = first image's size)" Minimum="0" Maximum="8192" SmallChange="100"
+                           SpinButtonPlacementMode="Compact" Value="{x:Bind ViewModel.Gif.MaxSize, Mode=TwoWay}" />
+                <StackPanel>
+                    <CheckBox Content="Keep transparency" IsChecked="{x:Bind ViewModel.Gif.KeepTransparency, Mode=TwoWay}"
+                              ToolTipService.ToolTip="Off: transparent areas and padding around smaller images are filled with the background colour (the 'Fill transparent areas' colour, currently shown in the swatch)." />
+                    <CheckBox Content="Dither (smoother gradients, bigger file)" IsChecked="{x:Bind ViewModel.Gif.Dither, Mode=TwoWay}" />
+                </StackPanel>
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="GifPathBox" Header="Save as" />
+                    <Button Grid.Column="1" VerticalAlignment="Bottom" Content="Browse" Click="BrowseGif_Click" />
+                </Grid>
+                <TextBlock Style="{StaticResource Caption}"
+                           Text="Frames follow the list order. Images of other sizes are fitted into the first image's frame and centred. GIF has 256 colours, so photos lose some quality." />
+            </StackPanel>
+        </ContentDialog>
 
         <!-- ======================= main area ======================= -->
         <Grid Grid.Row="3" Margin="16,0,16,0" ColumnSpacing="12">

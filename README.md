@@ -29,6 +29,14 @@ selection box at the bottom — the same syntax as Image Renamer: `5915-5920` (n
 * Animated GIF/WebP: the first frame is converted.
 * 8 bits per channel (Magick.NET Q8): 16-bit PNG/TIFF sources are reduced to 8-bit.
 
+## Create GIF
+
+Select two or more images and press **Create GIF** (command bar or right-click). Frames follow the
+list order. Options: frame delay, loop count (0 = forever), play forward then backward, longest side,
+keep transparency or fill with the background colour, dithering, and where to save. Images of other
+sizes are fitted into the first image's frame and centred. GIF has 256 colours and on/off
+transparency only, so photos lose some quality and soft edges become hard.
+
 ## Options
 
 Quality, resize (fit within W×H or percent, no enlarging unless asked), keep or remove metadata

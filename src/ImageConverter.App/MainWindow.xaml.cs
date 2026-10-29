@@ -6,6 +6,7 @@ using ImageConverter.Core;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Windows.ApplicationModel.DataTransfer;
@@ -94,11 +95,12 @@ public sealed partial class MainWindow : Window
 
     public void ShowError(string title, string message) => ShowNotice(InfoBarSeverity.Error, title, message);
 
-    private void ShowNotice(InfoBarSeverity severity, string title, string message)
+    private void ShowNotice(InfoBarSeverity severity, string title, string message, ButtonBase? action = null)
     {
         Notice.Severity = severity;
         Notice.Title = title;
         Notice.Message = message;
+        Notice.ActionButton = action;
         Notice.IsOpen = true;
     }
 
@@ -305,6 +307,7 @@ public sealed partial class MainWindow : Window
     {
         OpenConvertedItem.IsEnabled = ViewModel.SelectedItems.Any(i => i.Status == ItemStatus.Done);
         ConvertSelectedItem.IsEnabled = ViewModel.CanConvertSelected;
+        CreateGifItem.IsEnabled = ViewModel.CanCreateGif;
         ConvertSelectedItem.Text = ViewModel.ConvertSelectedText;
     }
 
@@ -416,4 +419,58 @@ public sealed partial class MainWindow : Window
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => ViewModel.Cancel();
+
+    // ================================================================== GIF
+
+    private async void CreateGif_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ViewModel.CanCreateGif) return;
+        var frames = ViewModel.SelectedItems.ToList();
+        GifSummary.Text = $"{frames.Count} images, in list order: {frames[0].FileName} … {frames[^1].FileName}";
+        GifPathBox.Text = GifBuilder.SuggestTarget(frames[0].FullPath);
+        GifDialog.XamlRoot = Content.XamlRoot;
+        GifDialog.RequestedTheme = ((FrameworkElement)Content).ActualTheme;
+        if (await GifDialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+        var target = GifPathBox.Text.Trim();
+        Notice.IsOpen = false;
+        try
+        {
+            var bytes = await ViewModel.CreateGifAsync(frames, target);
+            if (bytes == null) return; // cancelled
+            var open = new Button { Content = "Open" };
+            open.Click += (_, _) => Open(target);
+            ShowNotice(InfoBarSeverity.Success, "GIF created", $"{Path.GetFileName(target)} · {frames.Count} frames · {Ui.Size(bytes.Value)}", open);
+        }
+        catch (Exception ex)
+        {
+            ShowError("Couldn't create the GIF", BatchRunner.Describe(ex));
+        }
+    }
+
+    private void GifDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+    {
+        var path = GifPathBox.Text.Trim();
+        if (path.Length == 0 || !Path.IsPathFullyQualified(path) || path.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+        {
+            args.Cancel = true;
+            GifPathBox.Focus(FocusState.Programmatic);
+            return;
+        }
+        if (!path.EndsWith(".gif", StringComparison.OrdinalIgnoreCase)) GifPathBox.Text = path + ".gif";
+    }
+
+    private async void BrowseGif_Click(object sender, RoutedEventArgs e)
+    {
+        var current = GifPathBox.Text.Trim();
+        var picker = new FileSavePicker
+        {
+            SuggestedFileName = Path.GetFileNameWithoutExtension(current) is { Length: > 0 } name ? name : "animation",
+            DefaultFileExtension = ".gif",
+        };
+        picker.FileTypeChoices.Add("GIF animation", [".gif"]);
+        InitializeWithWindow.Initialize(picker, _hwnd);
+        var file = await picker.PickSaveFileAsync();
+        if (file != null) GifPathBox.Text = file.Path;
+    }
 }

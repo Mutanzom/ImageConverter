@@ -37,11 +37,16 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(SelectedFormat));
             ScheduleReplan();
         };
+
+        try { Gif = string.IsNullOrEmpty(settings.GifJson) ? new() : GifOptions.FromJson(settings.GifJson); }
+        catch (Exception) { Gif = new(); }
     }
 
     // ---------------------------------------------------------------- state
 
     public ConvertOptions Options { get; }
+
+    public GifOptions Gif { get; }
 
     public ObservableCollection<ConvertItem> Items { get; } = [];
 
@@ -64,8 +69,8 @@ public partial class MainViewModel : ObservableObject
     }
 
     [ObservableProperty] private bool _includeSubfolders;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanConvert), nameof(CanConvertSelected), nameof(CanRemove), nameof(CanClear), nameof(IsIdle))] private bool _isLoading;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanConvert), nameof(CanConvertSelected), nameof(CanRemove), nameof(CanClear), nameof(IsIdle), nameof(StatusText))] private bool _isRunning;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanConvert), nameof(CanConvertSelected), nameof(CanCreateGif), nameof(CanRemove), nameof(CanClear), nameof(IsIdle))] private bool _isLoading;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(CanConvert), nameof(CanConvertSelected), nameof(CanCreateGif), nameof(CanRemove), nameof(CanClear), nameof(IsIdle), nameof(StatusText))] private bool _isRunning;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(StatusText), nameof(HasItems), nameof(CanConvert), nameof(CanClear))] private int _totalCount;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(StatusText), nameof(CanConvert))] private int _toConvertCount;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(StatusText))] private int _finishedCount;
@@ -74,7 +79,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty, NotifyPropertyChangedFor(nameof(StatusText))] private int _doneCount;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(StatusText))] private int _failedCount;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasOutputFolder))] private string? _lastOutputFolder;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(SelectionText), nameof(CanConvertSelected), nameof(ConvertSelectedText), nameof(HasSelection), nameof(CanRemove))]
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(SelectionText), nameof(CanConvertSelected), nameof(ConvertSelectedText), nameof(HasSelection), nameof(CanRemove), nameof(CanCreateGif))]
     private int _selectionCount;
     [ObservableProperty] private string _folderTitle = "";
 
@@ -85,6 +90,8 @@ public partial class MainViewModel : ObservableObject
     public bool CanRemove => IsIdle && SelectionCount > 0;
     public bool CanClear => IsIdle && TotalCount > 0;
     public bool CanConvertSelected => IsIdle && SelectionCount > 0;
+    /// <summary>An animation needs at least two frames.</summary>
+    public bool CanCreateGif => IsIdle && SelectionCount >= 2;
     public string SelectionText => SelectionCount == 0 ? "Nothing selected" : $"{SelectionCount} selected";
     public string ConvertSelectedText => SelectionCount == 0 ? "Convert selected" : $"Convert selected ({SelectionCount})";
     public bool HasOutputFolder => LastOutputFolder != null;
@@ -94,7 +101,9 @@ public partial class MainViewModel : ObservableObject
         get
         {
             if (TotalCount == 0) return "No images loaded";
-            if (IsRunning) return $"Converting {FinishedCount} of {RunCount}…";
+            if (IsRunning) return _creatingGif
+                ? FinishedCount < RunCount ? $"Creating GIF: frame {FinishedCount + 1} of {RunCount}…" : "Creating GIF: saving…"
+                : $"Converting {FinishedCount} of {RunCount}…";
             var s = $"{TotalCount} image{(TotalCount == 1 ? "" : "s")}";
             if (DoneCount > 0 || FailedCount > 0)
             {
@@ -263,9 +272,48 @@ public partial class MainViewModel : ObservableObject
 
     public void Cancel() => _runCts?.Cancel();
 
+    private bool _creatingGif;
+
+    /// <summary>
+    /// Makes an animated GIF of <paramref name="frames"/> in list order. Returns the file size, or
+    /// null when cancelled. Read errors (a broken frame) are thrown to the caller.
+    /// </summary>
+    public async Task<long?> CreateGifAsync(IReadOnlyList<ConvertItem> frames, string target)
+    {
+        if (!IsIdle || frames.Count < 2) return null;
+        _runCts = new CancellationTokenSource();
+        _creatingGif = true;
+        FinishedCount = 0;
+        RunCount = frames.Count;
+        IsRunning = true;
+        try
+        {
+            var paths = frames.Select(f => f.FullPath).ToList();
+            var options = GifOptions.FromJson(Gif.ToJson()); // snapshot
+            var background = Options.Background;
+            var progress = new Progress<int>(n => FinishedCount = n);
+            var token = _runCts.Token;
+            var bytes = await Task.Run(() => GifBuilder.Create(paths, target, options, background, progress, token));
+            LastOutputFolder = Path.GetDirectoryName(target);
+            return bytes;
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        finally
+        {
+            _creatingGif = false;
+            IsRunning = false;
+            _runCts.Dispose();
+            _runCts = null;
+        }
+    }
+
     public void SaveTo(AppSettings settings)
     {
         settings.IncludeSubfolders = IncludeSubfolders;
         settings.OptionsJson = Options.ToJson();
+        settings.GifJson = Gif.ToJson();
     }
 }

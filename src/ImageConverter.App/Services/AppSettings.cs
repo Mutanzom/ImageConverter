@@ -18,6 +18,9 @@ public sealed class AppSettings
     /// <summary>The conversion options from the last session.</summary>
     public string? OptionsJson { get; set; }
 
+    /// <summary>The last Create GIF settings.</summary>
+    public string? GifJson { get; set; }
+
     public static AppSettings Load()
     {
         try

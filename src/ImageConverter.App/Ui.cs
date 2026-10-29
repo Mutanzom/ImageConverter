@@ -32,6 +32,8 @@ public static class Ui
 
     public static string Percent(int value) => $"{value}";
 
+    public static string Fps(int delayMs) => delayMs <= 0 ? "" : $"= {1000.0 / delayMs:0.#} frames per second";
+
     public static Brush ColorBrush(string? hex) => new SolidColorBrush(ParseHex(hex));
 
     /// <summary>"#RRGGBB" as written by the colour picker; anything else shows as white.</summary>

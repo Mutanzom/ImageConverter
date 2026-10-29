@@ -47,7 +47,7 @@ public static class BatchRunner
     }
 
     /// <summary>ImageMagick messages end with "@ error/coders/foo.c/Bar/123"; users don't need that part.</summary>
-    internal static string Describe(Exception e)
+    public static string Describe(Exception e)
     {
         var message = e.Message;
         int at = message.IndexOf(" @ ", StringComparison.Ordinal);
